@@ -1,0 +1,198 @@
+#!/bin/bash
+
+user=`whoami`
+
+if [ "$user" != "root" ]
+then
+echo "Error - Please run the tool with 'root' user or 'sudo' rights"
+else
+	echo "Enter IP List filename with path"
+	read file
+
+	l=`wc -l $file | cut -d " " -f1`
+
+	if [ "$l" != "0" ]
+	then
+		date=`date +%d"-"%m"-"%Y`
+		check=`ls | grep $date | wc -l`
+
+		if [ "$check" == "0" ]
+		then
+			mkdir "$date"
+		fi
+
+ 		for (( i=1 ; i <= $l ; i++ ))
+		do
+			ip=`sed -n ''$i'p' $file`
+			check=`cd $date; ls | grep $ip | wc -l; cd ..`
+
+			if [ "$check" == "0" ]
+			then
+				mkdir "$date"/$ip
+				mkdir "$date"/$ip/nmap_result
+
+				nmap -Pn -A -T4 -p1-65525 $ip -oA "$date"/$ip/nmap_result/TCP_Scan >> "$date"/$ip/nmap_result/nmap_logs
+				nmap -Pn -A -T4 -sU -p49,53,67,68,69,88,113,118,123,135,137,138,143,156,161,162,194,213,220,264,389,444,500,514,520,530,563,1194,1293,1434,1512,1645,1646,1812,2206,3389,5060,5061,5432 $ip -oA "$date"/$ip/nmap_result/UDP_Scan >> "$date"/$ip/nmap_result/nmap_logs
+
+				wc=`cat "$date"/$ip/nmap_result/nmap_logs | grep open | wc -l`
+
+				if [ "$wc" == "0" ]
+				then
+					echo
+					echo "No open ports were found for IP --> $ip"
+					echo
+				else
+					mkdir "$date"/$ip/open_ports
+					for (( j=1 ; j <= $wc ; j++ ))
+					do
+						port=`cat "$date"/$ip/nmap_result/nmap_logs | grep open | sed -n "$j"p | cut -d "/" -f1`
+						echo $port >> "$date"/$ip/open_ports/ports
+					done
+
+					sort -u "$date"/$ip/open_ports/ports > "$date"/$ip/open_ports/port_list
+					rm "$date"/$ip/open_ports/ports
+
+					port_list="port_list"
+					pwc=`wc -l "$date"/$ip/open_ports/$port_list | cut -d " " -f1`
+					for (( j=1 ; j <= $pwc ; j++ ))
+					do
+						port=`sed -n ''$j'p' "$date"/$ip/open_ports/$port_list`
+
+						if [ "$port" == "21" ]
+						then
+							mkdir "$date"/$ip/open_ports/$port
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open localhost 21\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"220\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg
+							rm "$date"/$ip/open_ports/$port/telnet
+
+							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+
+							nmap -A -p$port -Pn --script=ftp-anon $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/anonymous_login_status.jpg
+						elif [ "$port" == "22" ]
+						then
+							mkdir "$date"/$ip/open_ports/$port
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open localhost 22\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"SSH\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg
+							rm "$date"/$ip/open_ports/$port/telnet
+
+							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+
+							nmap -A -p$port -Pn --script=ssh2-enum-algos $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/algorithm_enum_status.jpg	
+							nmap -A -p$port -Pn --script=ssh-hostkey $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/hostkey_status.jpg							
+							nmap -A -p$port -Pn --script=sshv1 $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/sshv1_status.jpg							
+						elif [ "$port" == "23" ]
+						then
+							mkdir "$date"/$ip/open_ports/$port
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open localhost 21\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"220\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg
+							rm "$date"/$ip/open_ports/$port/telnet
+
+							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							
+							nmap -A -p$port -Pn --script=telnet-encryption $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_encryption.jpg	
+						elif [ "$port" == "25" ]
+						then
+							mkdir "$date"/$ip/open_ports/$port
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open localhost 21\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"220\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg
+							rm "$date"/$ip/open_ports/$port/telnet
+
+							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							
+							nmap -A -p$port -Pn --script=smtp-commands $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smtp_commands_status.jpg		
+							nmap -A -p$port -Pn --script=smtp-enum-users $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smtp_users_status.jpg
+							nmap -A -p$port -Pn --script=smtp-open-relay $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smtp_open_relay_status.jpg		
+						elif [ "$port" == "53" ]
+						then
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							
+							nmap -A -p$port -Pn --script=dns-check-zone $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_check_zone_status.jpg		
+							nmap -A -p$port -Pn --script=dns-service-discovery $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_service_discovery_status.jpg
+							nmap -A -p$port -Pn --script=dns-srv-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_services_status.jpg		
+							nmap -A -p$port -Pn --script=dns-nsec3-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_nsec3_status.jpg		
+							nmap -A -p$port -Pn --script=dns-nsec-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_nsec_status.jpg		
+						elif [ "$port" == "69" ]
+						then
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							
+							nmap -A -p$port -Pn --script=tftp-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/tftp_enum_status.jpg
+						elif [ "$port" == "79" ]
+						then
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							
+							nmap -A -p$port -Pn --script=finger $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/finger_enum_status.jpg
+						fi
+					done
+				fi
+			else
+				echo
+				echo "Scanning of the IP --> $ip is already complete."
+				pwd=`pwd`
+				echo "To rescan this IP, please delete the folder : '$pwd/$date/$ip' and start the scan again !!!"
+				echo
+			fi
+
+			stat=`expr "$l" - "$i"`
+			echo
+			echo $stat "IPs are left..."
+			echo
+		done
+	else
+		echo
+		echo "Sorry !! No IPs were found !!!"
+		echo
+	fi
+
+echo
+echo "Scanning Complete!!!"
+pwd=`pwd`
+echo "Please check the folder : '$pwd/$date'"
+echo
+
+fi
