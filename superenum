@@ -4,7 +4,7 @@ user=`whoami`
 
 if [ "$user" != "root" ]
 then
-echo "Error - Please run the tool with 'root' user or 'sudo' rights"
+	echo "Error - Please run the tool with 'root' user or 'sudo' rights"
 else
 	echo "Enter IP List filename with path"
 	read file
@@ -31,21 +31,33 @@ else
 				mkdir "$date"/$ip
 				mkdir "$date"/$ip/nmap_result
 
-				nmap -Pn -A -T4 -p1-65525 $ip -oA "$date"/$ip/nmap_result/TCP_Scan >> "$date"/$ip/nmap_result/nmap_logs
-				nmap -Pn -A -T4 -sU -p49,53,67,68,69,88,113,118,123,135,137,138,143,156,161,162,194,213,220,264,389,444,500,514,520,530,563,1194,1293,1434,1512,1645,1646,1812,2206,3389,5060,5061,5432 $ip -oA "$date"/$ip/nmap_result/UDP_Scan >> "$date"/$ip/nmap_result/nmap_logs
+				time=`date`
+				echo "$time:          TCP Scan Started for IP: $ip" >> "$date"/superenum.log
+				echo
+				echo "TCP Scan Started for IP: $ip"
 
-				wc=`cat "$date"/$ip/nmap_result/nmap_logs | grep open | wc -l`
+				nmap -p1-65535 -T5 -Pn $ip -oA "$date"/$ip/nmap_result/TCP_Scan >> "$date"/$ip/nmap_result/nmap_logs
+				
+				time=`date`
+				echo "$time:          UDP Scan Started for IP: $ip" >> "$date"/superenum.log
+				echo
+				echo "UDP Scan Started for IP: $ip"
+
+				nmap -T5 -Pn -sU -p49,53,67,68,69,88,113,118,123,135,137,138,143,156,161,162,194,213,220,264,389,444,500,514,520,530,563,1194,1293,1434,1512,1645,1646,1812,2206,3389,5060,5061,5432 $ip -oA "$date"/$ip/nmap_result/UDP_Scan >> "$date"/$ip/nmap_result/nmap_logs
+
+				wc=`cat "$date"/$ip/nmap_result/nmap_logs | grep "\sopen\s" | wc -l`
 
 				if [ "$wc" == "0" ]
 				then
+					time=`date`
+					echo "$time:          No open ports were found for IP: $ip" >> "$date"/superenum.log
 					echo
-					echo "No open ports were found for IP --> $ip"
-					echo
+					echo "No open ports were found for IP: $ip"
 				else
 					mkdir "$date"/$ip/open_ports
 					for (( j=1 ; j <= $wc ; j++ ))
 					do
-						port=`cat "$date"/$ip/nmap_result/nmap_logs | grep open | sed -n "$j"p | cut -d "/" -f1`
+						port=`cat "$date"/$ip/nmap_result/nmap_logs | grep "\sopen\s" | sed -n "$j"p | cut -d "/" -f1`
 						echo $port >> "$date"/$ip/open_ports/ports
 					done
 
@@ -60,6 +72,11 @@ else
 
 						if [ "$port" == "21" ]
 						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
 							mkdir "$date"/$ip/open_ports/$port
 
 							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
@@ -67,19 +84,45 @@ else
 							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
 							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
 							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
-							echo "send \"open localhost 21\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
 							echo "expect \"220\"" >> "$date"/$ip/open_ports/$port/telnet
 							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
 
 							chmod 777 "$date"/$ip/open_ports/$port/telnet
-							"$date"/$ip/open_ports/$port/telnet | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null
 							rm "$date"/$ip/open_ports/$port/telnet
 
-							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
 
-							nmap -A -p$port -Pn --script=ftp-anon $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/anonymous_login_status.jpg
+							nmap -p$port -Pn --script=ftp-anon $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/anonymous_login_status.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=ftp-brute $ip | grep "|" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/user_credentials_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/user_credentials.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/result
 						elif [ "$port" == "22" ]
 						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
 							mkdir "$date"/$ip/open_ports/$port
 
 							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
@@ -87,21 +130,25 @@ else
 							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
 							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
 							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
-							echo "send \"open localhost 22\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
 							echo "expect \"SSH\"" >> "$date"/$ip/open_ports/$port/telnet
 							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
 
 							chmod 777 "$date"/$ip/open_ports/$port/telnet
-							"$date"/$ip/open_ports/$port/telnet | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null
 							rm "$date"/$ip/open_ports/$port/telnet
 
-							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
 
-							nmap -A -p$port -Pn --script=ssh2-enum-algos $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/algorithm_enum_status.jpg	
-							nmap -A -p$port -Pn --script=ssh-hostkey $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/hostkey_status.jpg							
-							nmap -A -p$port -Pn --script=sshv1 $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/sshv1_status.jpg							
+							nmap -p$port -Pn --script=ssh2-enum-algos $ip | grep "|" | convert -background black -fill white -size 1080x720 label:@- "$date"/$ip/open_ports/$port/algorithm_enum_status.jpg 2>/dev/null
+							nmap -p$port -Pn --script=ssh-hostkey $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/hostkey_status.jpg 2>/dev/null
 						elif [ "$port" == "23" ]
 						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
 							mkdir "$date"/$ip/open_ports/$port
 
 							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
@@ -109,19 +156,24 @@ else
 							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
 							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
 							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
-							echo "send \"open localhost 21\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
 							echo "expect \"220\"" >> "$date"/$ip/open_ports/$port/telnet
 							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
 
 							chmod 777 "$date"/$ip/open_ports/$port/telnet
-							"$date"/$ip/open_ports/$port/telnet | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null
 							rm "$date"/$ip/open_ports/$port/telnet
 
-							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
 							
-							nmap -A -p$port -Pn --script=telnet-encryption $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_encryption.jpg	
+							nmap -p$port -Pn --script=telnet-encryption $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_encryption.jpg 2>/dev/null	
 						elif [ "$port" == "25" ]
 						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
 							mkdir "$date"/$ip/open_ports/$port
 
 							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
@@ -129,62 +181,885 @@ else
 							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
 							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
 							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
-							echo "send \"open localhost 21\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
 							echo "expect \"220\"" >> "$date"/$ip/open_ports/$port/telnet
 							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
 
 							chmod 777 "$date"/$ip/open_ports/$port/telnet
-							"$date"/$ip/open_ports/$port/telnet | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null
 							rm "$date"/$ip/open_ports/$port/telnet
 
-							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=smtp-commands $ip | grep "|" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smtp_commands_status_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smtp_commands_status.jpg 2>/dev/null
+							fi
 							
-							nmap -A -p$port -Pn --script=smtp-commands $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smtp_commands_status.jpg		
-							nmap -A -p$port -Pn --script=smtp-enum-users $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smtp_users_status.jpg
-							nmap -A -p$port -Pn --script=smtp-open-relay $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smtp_open_relay_status.jpg		
+							rm "$date"/$ip/open_ports/$port/result
+
+							nmap -p$port -Pn --script=smtp-enum-users $ip | grep "|" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smtp_users_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smtp_users.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/result
+
+							nmap -p$port -Pn --script=smtp-open-relay $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smtp_open_relay_status.jpg 2>/dev/null		
 						elif [ "$port" == "53" ]
 						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
 							mkdir "$date"/$ip/open_ports/$port
 							
-							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							nmap -A -p$port -Pn -sU $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
 							
-							nmap -A -p$port -Pn --script=dns-check-zone $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_check_zone_status.jpg		
-							nmap -A -p$port -Pn --script=dns-service-discovery $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_service_discovery_status.jpg
-							nmap -A -p$port -Pn --script=dns-srv-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_services_status.jpg		
-							nmap -A -p$port -Pn --script=dns-nsec3-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_nsec3_status.jpg		
-							nmap -A -p$port -Pn --script=dns-nsec-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_nsec_status.jpg		
+							nmap -p$port -Pn -sU --script=dns-check-zone $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_check_zone_status.jpg 2>/dev/null		
+							nmap -p$port -Pn -sU --script=dns-service-discovery $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_service_discovery_status.jpg 2>/dev/null
+							nmap -p$port -Pn -sU --script=dns-srv-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_services_status.jpg 2>/dev/null		
+							nmap -p$port -Pn -sU --script=dns-nsec3-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_nsec3_status.jpg 2>/dev/null		
+							nmap -p$port -Pn -sU --script=dns-nsec-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/dns_nsec_status.jpg 2>/dev/null		
 						elif [ "$port" == "69" ]
 						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
 							mkdir "$date"/$ip/open_ports/$port
 							
-							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							nmap -A -p$port -Pn -sU $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
 							
-							nmap -A -p$port -Pn --script=tftp-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/tftp_enum_status.jpg
+							nmap -p$port -Pn -sU --script=tftp-enum $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/tftp_enum_status.jpg 2>/dev/null
 						elif [ "$port" == "79" ]
 						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
 							mkdir "$date"/$ip/open_ports/$port
 							
-							nmap -A -p$port -Pn $ip | grep open | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
 							
-							nmap -A -p$port -Pn --script=finger $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/finger_enum_status.jpg
+							nmap -p$port -Pn --script=finger $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/finger_enum_status.jpg 2>/dev/null
+						elif [ "$port" == "80" -o "$port" == "8080" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+							
+							nmap -p$port -Pn --script=http-enum $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/http_enum_status.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=http-headers $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/http_headers_or_server_details.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=http-methods $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/http_methods_allowed.jpg 2>/dev/null
+							
+							nmap -p$port -Pn --script=http-slowloris-check $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/http_slowloris_attack.jpg 2>/dev/null
+
+							nikto -h $ip | grep "+" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "+" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/nikto_output_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "+" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/nikto_output.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/result
+						elif [ "$port" == "111" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+							
+							nmap -p$port -Pn --script=rpcinfo $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/rpc_info_1.jpg 2>/dev/null
+
+							rpcinfo -p $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/rpc_info_2.jpg 2>/dev/null
+						elif [ "$port" == "123" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn -sU $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+							
+							ntpdc -c monlist $ip | grep "|" | convert -background black -fill white -size 1080x720 label:@- "$date"/$ip/open_ports/$port/ntp_monlist_1.jpg 2>/dev/null
+
+							nmap -p$port -Pn -sU --script=ntp-monlist $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ntp_monlist_2.jpg 2>/dev/null
+
+							nmap -p$port -Pn -sU --script=ntp-info $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ntp_info.jpg 2>/dev/null
+
+							ntpdc -c sysinfo $ip | grep "|" | convert -background black -fill white -size 1080x720 label:@- "$date"/$ip/open_ports/$port/ntp_sysinfo.jpg 2>/dev/null
+						elif [ "$port" == "135" -o "$port" == "137" -o "$port" == "138" -o "$port" == "139" -o "$port" == "445" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							if [ "$port" == "135" -o "$port" == "139" -o "$port" == "445" ]
+							then
+								nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+							else
+								nmap -A -p$port -Pn -sU $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+							fi
+							
+							nbtscan $ip -v | convert -background black -fill white -size 1080x720 label:@- "$date"/$ip/open_ports/$port/nbtscan_enum.jpg 2>/dev/null
+							nmap -p135,137,138,139,445 -Pn $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/smb_info.jpg 2>/dev/null
+							
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/null_session
+							echo >> "$date"/$ip/open_ports/$port/null_session
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/null_session
+							echo "spawn smbclient //172.29.5.133/ipc$ -N" >> "$date"/$ip/open_ports/$port/null_session
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/null_session
+							echo "exit" >> "$date"/$ip/open_ports/$port/null_session
+							echo "EOF" >> "$date"/$ip/open_ports/$port/null_session
+
+							chmod 777 "$date"/$ip/open_ports/$port/null_session
+							"$date"/$ip/open_ports/$port/null_session  | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/null_session_status.jpg 2>/dev/null
+							rm "$date"/$ip/open_ports/$port/null_session
+						elif [ "$port" == "161" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn -sU $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn -sU --script=snmp-interfaces $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/snmp_interfaces.jpg 2>/dev/null
+
+							nmap -p$port -Pn -sU --script=snmp-netstat $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/snmp_netstat.jpg 2>/dev/null
+
+							nmap -p$port -Pn -sU --script=snmp-processes $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/snmp_processes.jpg 2>/dev/null
+						elif [ "$port" == "389" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=ldap-rootdse $ip | grep "|" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ldap_rootdse_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ldap_rootdse.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/result
+
+							nmap -p$port -Pn --script=ldap-search $ip | grep "|" | grep "uniqueMember:" | head | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ldap_sample_users.jpg 2>/dev/null
+						elif [ "$port" == "443" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=ssl-cert $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ssl_certificate.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=ssl-date $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ssl_expiry_date.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=ssl-enum-ciphers $ip | grep "|" > "$date"/$ip/open_ports/$port/cipher
+							size=`cat "$date"/$ip/open_ports/$port/cipher | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								l=`nmap -p$port $ip --script ssl-enum-ciphers  | grep "|" | grep -Po "[a-zA-Z]{3}v.*" | wc -l`
+								for (( m=1 ; m <= $l ; m++ ))
+								do
+									start=`cat "$date"/$ip/open_ports/$port/cipher | grep "|" | grep -nPo "[a-zA-Z]{3}v.*" | sed -n ''$m'p' | cut -d ":" -f1`
+									if [ "$m" == "$l" ]
+									then
+										end=`echo $size`
+									else
+										k=1
+										nl=`expr "$m" + "$k"`
+										end=`cat "$date"/$ip/open_ports/$port/cipher  | grep "|" | grep -nPo "[a-zA-Z]{3}v.*" | sed -n ''$nl'p' | cut -d ":" -f1`
+										end=`expr "$end" - "$k"`
+									fi
+
+									cat "$date"/$ip/open_ports/$port/cipher  | grep "|" | sed -n $start,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ssl_cipher_$m.jpg 2>/dev/null
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/cipher  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ssl_cipher.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/cipher
+
+							nmap -p$port -Pn --script=ssl-heartbleed $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ssl_heartbleed_status.jpg 2>/dev/null
+						elif [ "$port" == "500" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+
+							nmap -A -p$port -Pn -sU $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn -sU --script=ike-version $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ike_version.jpg 2>/dev/null
+
+							ike-scan $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ike_scan_output.jpg 2>/dev/null
+						elif [ "$port" == "502" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=modbus-discover $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/modbus_info.jpg 2>/dev/null
+						elif [ "$port" == "513" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							rlogin -oBatchMode=yes $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/rlogin_manual_login.jpg 2>/dev/null
+						elif [ "$port" == "514" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							rsh -oBatchMode=yes $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/rlogin_manual_login.jpg 2>/dev/null
+						elif [ "$port" == "1433" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=ms-sql-info $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ms_sql_info.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=ms-sql-brute $ip | grep "|" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/user_credentials_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/user_credentials.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/result
+						elif [ "$port" == "1434" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=ms-sql-info $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/ms_sql_info.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=ms-sql-brute $ip | grep "|" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/user_credentials_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/user_credentials.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/result
+						elif [ "$port" == "1494" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=citrix-enum-apps $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/citrix_enum_apps.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=citrix-enum-servers $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/citrix_enum_servers.jpg 2>/dev/null
+						elif [ "$port" == "1521" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=oracle-enum-users $ip | grep "|" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/oracle_users_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/oracle_users.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/result
+
+							nmap -p$port -Pn --script=oracle-brute $ip | grep "|" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/user_credentials_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/user_credentials.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/result
+
+							sh /usr/share/oscanner/oscanner.sh -s $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/oscanner_output.jpg 2>/dev/null
+						elif [ "$port" == "2049" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=nfs-ls $ip | grep "|" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/folders_available_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/folders_available.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/result
+
+							nmap -p$port -Pn --script=nfs-statfs $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/statfs.jpg 2>/dev/null
+
+							showmount -e $ip | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/mountable.jpg 2>/dev/null
+						elif [ "$port" == "2301" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null	
+							rm "$date"/$ip/open_ports/$port/telnet
+						elif [ "$port" == "2381" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null	
+							rm "$date"/$ip/open_ports/$port/telnet
+						elif [ "$port" == "3306" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=mysql-brute $ip | grep "|" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/user_credentials_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/user_credentials.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/result
+
+							nmap -p$port -Pn --script=mysql-enum $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/mysql_enum.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=mysql-info $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/mysql_info.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=mysql-users $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/users.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=mysql-users $ip | grep "|" > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "30" ]
+							then
+								k=30
+								end=30
+								c=1
+								t=1
+								for (( m=1 ; m <= $size ; ))
+								do
+									cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/users_$c.jpg 2>/dev/null
+									m=`echo $end`
+									end=`expr "$end" + "$k"`
+									c=`expr "$c" + "$t"`
+								done
+							else
+								cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/users.jpg 2>/dev/null
+							fi
+							
+							rm "$date"/$ip/open_ports/$port/result
+						elif [ "$port" == "3389" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null	
+							rm "$date"/$ip/open_ports/$port/telnet
+						elif [ "$port" == "5060" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=sip-enum-users $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/sip_users_tcp.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=sip-methods $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/sip_methods_tcp.jpg 2>/dev/null
+
+							nmap -p$port -Pn -sU --script=sip-enum-users $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/sip_users_udp.jpg 2>/dev/null
+
+							nmap -p$port -Pn -sU --script=sip-methods $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/sip_methods_udp.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null	
+							rm "$date"/$ip/open_ports/$port/telnet
+						elif [ "$port" == "5900" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=vnc-info $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/vnc_info.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null	
+							rm "$date"/$ip/open_ports/$port/telnet
+						elif [ "$port" == "5901" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=vnc-info $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/vnc_info.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null
+							rm "$date"/$ip/open_ports/$port/telnet
+						elif [ "$port" == "5902" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=vnc-info $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/vnc_info.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null
+							rm "$date"/$ip/open_ports/$port/telnet
+						elif [ "$port" -ge "6000" -a "$port" -le "6063" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							nmap -p$port -Pn --script=x11-access $ip | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/x11_access.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null
+							rm "$date"/$ip/open_ports/$port/telnet
+						elif [ "$port" == "9001" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/tor_disclosure.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null
+							rm "$date"/$ip/open_ports/$port/telnet
+						elif [ "$port" == "9030" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/tor_disclosure.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null
+							rm "$date"/$ip/open_ports/$port/telnet
+						elif [ "$port" == "9100" ]
+						then
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/printer_zerox_disclosure.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null
+							rm "$date"/$ip/open_ports/$port/telnet
+						else
+							time=`date`
+							echo "$time:          Testing for $ip: $port" >> "$date"/superenum.log
+							echo
+							echo "Testing for $ip: $port"
+
+							mkdir "$date"/$ip/open_ports/$port
+							
+							nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/version_disclosure.jpg 2>/dev/null
+
+							echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
+							echo >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
+							echo "spawn telnet" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect \"telnet>\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "send \"open $ip $port\n\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "expect -re \"(\\w+)\"" >> "$date"/$ip/open_ports/$port/telnet
+							echo "EOF" >> "$date"/$ip/open_ports/$port/telnet
+
+							chmod 777 "$date"/$ip/open_ports/$port/telnet
+							"$date"/$ip/open_ports/$port/telnet | sed 1d | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/telnet_banner.jpg 2>/dev/null
+							rm "$date"/$ip/open_ports/$port/telnet
 						fi
 					done
 				fi
 			else
 				echo
-				echo "Scanning of the IP --> $ip is already complete."
+				time=`date`
+				echo "Scanning of the IP --> $ip is already complete. Hence, skipping this IP"
+				echo "$time:          Scanning of the IP --> $ip is already complete. Hence, skipping this IP" >> "$date"/superenum.log
 				pwd=`pwd`
-				echo "To rescan this IP, please delete the folder : '$pwd/$date/$ip' and start the scan again !!!"
+				echo "To rescan this IP, please manually delete the folder : '$pwd/$date/$ip' and start the scan again !!!"
+				time=`date`
+				echo "$time:          To rescan this IP, please manually delete the folder : '$pwd/$date/$ip' and start the scan again !!!" >> "$date"/superenum.log
 				echo
 			fi
 
 			stat=`expr "$l" - "$i"`
 			echo
+			time=`date`
+			echo "$time:          $stat IPs are left..." >> "$date"/superenum.log
 			echo $stat "IPs are left..."
 			echo
 		done
 	else
 		echo
+		time=`date`
+		echo "$time:          Sorry !! No IPs were found !!!" >> "$date"/superenum.log
 		echo "Sorry !! No IPs were found !!!"
 		echo
 	fi
