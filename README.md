@@ -18,8 +18,11 @@ Note:
 commands.config file has all the commands to execute specific to a port number. This file can be updated easily.
 
 Each command is separated by "@" symbol in the config file. For example currently for port 2049 below is the current entry in the configuration file:
+
 2049@nmap -p$port -Pn --script=nfs-ls $ip | grep "|"@nmap -p$port -Pn --script=nfs-statfs $ip | grep "|"@showmount -e $ip
+
 For adding any other nmap script or command you simply needs to add(highlighted in red) as below:
+
 2049@nmap -p$port -Pn --script=nfs-ls $ip | grep "|"@nmap -p$port -Pn --script=nfs-statfs $ip | grep "|"@showmount -e $ip@nmap -p$port -Pn --script=nfs-showmount $ip | grep "|" 
 
 While adding any command, in place of IP mention as $ip and in place of port number mention as $port
