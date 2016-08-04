@@ -100,11 +100,18 @@ else
 								then
 									scr=`echo $line | cut -d "@" -f$r | cut -d "=" -f2 | cut -d " " -f1`
 									filename=`echo "$filename"_"$scr"`
-								elif [ "$tool" == "ntpq" ]
+								fi
+								
+								ntp=`echo $tool | grep ntp | wc -l`
+								if [ "$ntp" != "0" ]
 								then
-									scr=`echo $line | cut -d " " -f3`
+									scr=`echo $line |  cut -d "@" -f$r | cut -d " " -f3 | grep -Po "[a-zA-Z]+"`
 									filename=`echo "$filename"_"$scr"`
 								fi
+
+								time=`date`
+								echo "$time:          Testing for $ip: $port, Tool: $filename" >> "$date"/superenum.log
+								echo "Testing for $ip: $port, Tool: $filename"
 
 								eval $comm > "$date"/$ip/open_ports/$port/result
 
@@ -118,20 +125,20 @@ else
 
 									for (( m=1 ; m <= $size ; ))
 									do
-										cat "$date"/$ip/open_ports/$port/result  | grep "|" | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/$filename_$c.jpg 2>/dev/null
+										cat "$date"/$ip/open_ports/$port/result | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/$filename_$c.jpg 2>/dev/null
 										m=`echo $end`
 										end=`expr "$end" + "$k"`
 										c=`expr "$c" + "$t"`
 									done
 								else
-									cat "$date"/$ip/open_ports/$port/result  | grep "|" | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/$filename.jpg 2>/dev/null
+									cat "$date"/$ip/open_ports/$port/result | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/$filename.jpg 2>/dev/null
 								fi
 								rm "$date"/$ip/open_ports/$port/result
 							done
 						fi
 						
 						prot=`echo ",49,53,67,68,69,88,113,118,123,135,137,138,143,156,161,162,194,213,220,264,389,444,500,514,520,530,563,1194,1293,1434,1512,1645,1646,1812,2206,3389,5060,5061,5432," | grep -Po ",$port," | wc -l`
-						
+
 						if [ "$prot" != "0" ]
 						then
 							nmap -A -p$port -Pn -sU $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/running_service_udp.jpg 2>/dev/null
