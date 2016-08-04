@@ -21,7 +21,7 @@ Each command is separated by "@" symbol in the config file. For example currentl
 
 2049@nmap -p$port -Pn --script=nfs-ls $ip | grep "|"@nmap -p$port -Pn --script=nfs-statfs $ip | grep "|"@showmount -e $ip
 
-For adding any other nmap script or command you simply needs to add(highlighted in red) as below:
+For adding any other nmap script or command you simply needs to add as below:
 
 2049@nmap -p$port -Pn --script=nfs-ls $ip | grep "|"@nmap -p$port -Pn --script=nfs-statfs $ip | grep "|"@showmount -e $ip@nmap -p$port -Pn --script=nfs-showmount $ip | grep "|" 
 
