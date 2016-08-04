@@ -2,7 +2,7 @@
 
 This script does the basic enumeration of any open port along with screenshots.
 
-Download the below files:
+Download the files:
 1. superenum
 2. commands.config
 
