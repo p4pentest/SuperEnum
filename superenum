@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Author = "Abhijit Maity"
-# Last Update Date = "04-Aug-2016"
+# Last Update Date = "08-Aug-2016"
 
 user=`whoami`
 config=`ls | grep "commands.config" | wc -l`
@@ -137,15 +137,15 @@ else
 							done
 						fi
 						
+						mkdir -p "$date"/$ip/open_ports/$port	
+					
 						prot=`echo ",49,53,67,68,69,88,113,118,123,135,137,138,143,156,161,162,194,213,220,264,389,444,500,514,520,530,563,1194,1293,1434,1512,1645,1646,1812,2206,3389,5060,5061,5432," | grep -Po ",$port," | wc -l`
-
 						if [ "$prot" != "0" ]
 						then
 							nmap -A -p$port -Pn -sU $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/running_service_udp.jpg 2>/dev/null
 						fi
 						nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/running_service_tcp.jpg 2>/dev/null
-						
-						mkdir -p "$date"/$ip/open_ports/$port
+
 						echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
 						echo >> "$date"/$ip/open_ports/$port/telnet
 						echo "expect<<EOF" >> "$date"/$ip/open_ports/$port/telnet
