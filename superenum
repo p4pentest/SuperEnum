@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Author = "Abhijit Maity"
-# Last Update Date = "08-Aug-2016"
+# Last Update Date = "19-Sep-2016"
 
 user=`whoami`
 config=`ls | grep "commands.config" | wc -l`
@@ -41,14 +41,14 @@ else
 				echo
 				echo "TCP Scan Started for IP: $ip"
 
-				nmap -T5 -Pn -p1-65535 $ip -oA "$date"/$ip/nmap_result/TCP_Scan >> "$date"/$ip/nmap_result/nmap_logs
+				nmap -T5 -Pn -p1-65535 $ip --system-dns -oA "$date"/$ip/nmap_result/TCP_Scan >> "$date"/$ip/nmap_result/nmap_logs
 				
 				time=`date`
 				echo "$time:          UDP Scan Started for IP: $ip" >> "$date"/superenum.log
 				echo
 				echo "UDP Scan Started for IP: $ip"
 
-				nmap -T5 -Pn -sU -p49,53,67,68,69,88,113,118,123,135,137,138,143,156,161,162,194,213,220,264,389,444,500,514,520,530,563,1194,1293,1434,1512,1645,1646,1812,2206,3389,5060,5061,5432 $ip -oA "$date"/$ip/nmap_result/UDP_Scan >> "$date"/$ip/nmap_result/nmap_logs
+				nmap -T5 -Pn -sU -p49,53,67,68,69,88,113,118,123,135,137,138,143,156,161,162,194,213,220,264,389,444,500,514,520,530,563,1194,1293,1434,1512,1645,1646,1812,2206,3389,5060,5061,5432 $ip --system-dns -oA "$date"/$ip/nmap_result/UDP_Scan >> "$date"/$ip/nmap_result/nmap_logs
 
 				wc=`cat "$date"/$ip/nmap_result/nmap_logs | grep "\sopen\s" | wc -l`
 
@@ -125,26 +125,42 @@ else
 
 									for (( m=1 ; m <= $size ; ))
 									do
-										cat "$date"/$ip/open_ports/$port/result | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/$filename_$c.jpg 2>/dev/null
+										cat "$date"/$ip/open_ports/$port/result | sed -n $m,''$end'p' | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/"$filename"_"$c".jpg 2>/dev/null
 										m=`echo $end`
 										end=`expr "$end" + "$k"`
 										c=`expr "$c" + "$t"`
 									done
+									rm "$date"/$ip/open_ports/$port/result
 								else
-									cat "$date"/$ip/open_ports/$port/result | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/$filename.jpg 2>/dev/null
+									if [ "$size" -gt "0" ]
+									then
+										cat "$date"/$ip/open_ports/$port/result | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/$filename.jpg 2>/dev/null
+										rm "$date"/$ip/open_ports/$port/result
+									fi
 								fi
-								rm "$date"/$ip/open_ports/$port/result
 							done
 						fi
-						
-						mkdir -p "$date"/$ip/open_ports/$port	
+						mkdir -p "$date"/$ip/open_ports/$port
 					
 						prot=`echo ",49,53,67,68,69,88,113,118,123,135,137,138,143,156,161,162,194,213,220,264,389,444,500,514,520,530,563,1194,1293,1434,1512,1645,1646,1812,2206,3389,5060,5061,5432," | grep -Po ",$port," | wc -l`
 						if [ "$prot" != "0" ]
 						then
-							nmap -A -p$port -Pn -sU $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/running_service_udp.jpg 2>/dev/null
+							nmap -A -p$port -Pn -sU $ip --system-dns | grep "\sopen\s" | sed -n 1p > "$date"/$ip/open_ports/$port/result
+							size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+							if [ "$size" -gt "0" ]
+							then
+								cat "$date"/$ip/open_ports/$port/result | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/running_service_udp.jpg 2>/dev/null
+								rm "$date"/$ip/open_ports/$port/result
+							fi
 						fi
-						nmap -A -p$port -Pn $ip | grep "\sopen\s" | sed -n 1p | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/running_service_tcp.jpg 2>/dev/null
+						nmap -A -p$port -Pn $ip --system-dns | grep "\sopen\s" | sed -n 1p > "$date"/$ip/open_ports/$port/result
+
+						size=`cat "$date"/$ip/open_ports/$port/result | wc -l`
+						if [ "$size" -gt "0" ]
+						then
+							cat "$date"/$ip/open_ports/$port/result | convert -background black -fill white -size 1080x720  label:@- "$date"/$ip/open_ports/$port/running_service_tcp.jpg 2>/dev/null
+							rm "$date"/$ip/open_ports/$port/result
+						fi
 
 						echo "#!/bin/bash" >> "$date"/$ip/open_ports/$port/telnet
 						echo >> "$date"/$ip/open_ports/$port/telnet
